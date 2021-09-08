@@ -11,7 +11,7 @@
 // ONLY USE WITH LITERALS YOU CRAZIES!
 #define MIN(X, Y) (X < Y) ? X : Y
 
-int iw_get_socket()
+int iw_get_socket(void)
 {
   int sock;
   if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) >= 0) {
@@ -27,28 +27,37 @@ void iw_close_socket(int sock)
 
 
 
+static int iw_call_with_name(int sock, char *ifname, int cmd, struct iwreq *req)
+{
+  strncpy(req->ifr_name, ifname, IFNAMSIZ);
+  req->ifr_name[IFNAMSIZ - 1] = 0;
+  return ioctl(sock, cmd, req);
+}
+
+// Mostly not needed.
 int iw_commit(int sock, char *ifname)
 {
   if (!ifname) {
     return -1;
   }
-  return  ioctl(sock, SIOCSIWCOMMIT, NULL);
+  struct iwreq req;
+  return iw_call_with_name(sock, ifname,SIOCSIWCOMMIT, &req);
 }
 
 int iw_get_we_string(int sock, char *ifname, char *dest, size_t dest_size)
 {
   struct iwreq req;
-
-  strncpy(req.ifr_ifrn.ifrn_name, ifname, MIN(IFNAMSIZ, dest_size));
   req.u.name[0] = 0;
 
-  if (ioctl(sock, SIOCGIWNAME, &req) < 0) {
-    return -1;
-  }
+  size_t name_size = MIN(IFNAMSIZ, dest_size);
 
-  if (!strncpy(dest, req.u.name, MIN(IFNAMSIZ - 1, dest_size))) {
+  if (iw_call_with_name(sock, ifname, SIOCGIWNAME, &req) < 0) {
     return -1;
   }
+  if (!strncpy(dest, req.u.name, name_size)) {
+    return -1;
+  }
+  dest[name_size - 1] = 0;
   return 0;
 }
 
@@ -102,6 +111,8 @@ int iw_get_devices(int sock, char (*dest)[IFNAMSIZ], size_t length)
     goto cleanup;
   }
 
+  // The driver will return null terminated strings with a max
+  // size of `IFNAMSIZ' (right?), so just memcpy should be fine here.
   for (int i = 0; i < status; ++i) {
     if(memcpy(dest[i], ifrs[i].ifr_name, IFNAMSIZ) != dest[i]) {
       status = -1;
@@ -113,4 +124,21 @@ int iw_get_devices(int sock, char (*dest)[IFNAMSIZ], size_t length)
  cleanup:
   free(ifrs);
   return status;
+}
+
+
+
+// I don't know what this does, and I am not comfortable testing it right now.
+int iw_set_network_id(int sock, char *ifname, int nwid);
+
+
+int iw_get_network_id(int sock, char *ifname)
+{
+  struct iwreq req;
+  req.u.param = (struct iw_param){ 0, 0, 0, 0 };
+
+  if (iw_call_with_name(sock, ifname, SIOCGIWNWID, &req) < 0) {
+    return -1;
+  }
+  return req.u.param.value;
 }

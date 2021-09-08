@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <stdlib.h>
 
-int sock;
+static int sock;
+static char ifname[IFNAMSIZ];
 
 void setUp(void)
 {
@@ -19,31 +19,25 @@ void tearDown(void)
 // Try to find a wireless interface.
 // We basically just search for the letter 'w' in the if names.
 // This is good enough for now, but we should probably do better.
-#define NAME_LENGTH 12
-static char *most_likely_wireless_nic(int sock)
+#define NAMES_LENGTH 12
+static int most_likely_wireless_nic(int sock, char dest[IFNAMSIZ])
 {
-  char *dest;
-  char names[NAME_LENGTH][IFNAMSIZ];
-  int count = iw_get_devices(sock, names, NAME_LENGTH);
-  for (int i = 0; i < count && i < NAME_LENGTH; ++i) {
+  char names[NAMES_LENGTH][IFNAMSIZ];
+  int count = iw_get_devices(sock, names, NAMES_LENGTH);
+  for (int i = 0; i < count && i < NAMES_LENGTH; ++i) {
     // Check the assembly to make sure it optimizes the mem access to a register.
     for (int j = 0; j < IFNAMSIZ && names[i][j]; ++j) {
       if (names[i][j] == 'w') {
-        dest = malloc(IFNAMSIZ);
-        if (!dest) {
-          return NULL;
-        }
         if (!memcpy(dest, names[i], IFNAMSIZ)) {
-          free(dest);
-          return NULL;
+          return -1;
         }
-        return dest;
+        return 0;
       }
     }
   }
-  return NULL;
+  return -1;
 }
-#undef NAME_LENGTH
+#undef NAMES_LENGTH
 
 // Open and test it (then leave it for )
 static void test_get_iw_socket(void)
@@ -66,28 +60,34 @@ static void test_get_devices_highlevel(void)
   TEST_ASSERT_MESSAGE(count > 0, "Failed to get devices.");
 }
 
-// Internal test! Just make sure we can determine the name.
+// Internal test! Just make sure we can determine the name,
+// and store it globally (so we don't repeat ourselves).
 static void test_get_wireless_device(void)
 {
-  char * ifname = most_likely_wireless_nic(sock);
-  TEST_ASSERT_NOT_NULL_MESSAGE(ifname, "Failed to get wireless interface name!");
-  free(ifname);
+  int err = most_likely_wireless_nic(sock, ifname);
+  TEST_ASSERT_MESSAGE(err == 0, "Failed to get wireless interface name!");
 }
 
 static void test_get_we_string(void)
 {
   char we_name[IFNAMSIZ];
-  char *ifname = most_likely_wireless_nic(sock);
   int err = iw_get_we_string(sock, ifname, we_name, IFNAMSIZ);
   TEST_ASSERT_MESSAGE(err == 0, "Failed to get wireless extensions string.");
-  free(ifname);
 }
 
 static void test_commit(void)
 {
-  char *ifname = most_likely_wireless_nic(sock);
-  TEST_ASSERT(iw_commit(sock, ifname));
-  free(ifname);
+  // This will probably fail when no changes have been made.
+  // It is largely only usefull for forcing changes during debugging.
+  TEST_IGNORE();
+  TEST_ASSERT(iw_commit(sock, ifname) >= 0);
+}
+
+static void test_get_network_id(void)
+{
+  // This will likely fail unless you have old hardware.
+  TEST_IGNORE();
+  TEST_ASSERT(iw_get_network_id(sock, ifname) >= 0);
 }
 
 int main(void)
@@ -101,6 +101,7 @@ int main(void)
   RUN_TEST(test_get_wireless_device);
   RUN_TEST(test_get_we_string);
   RUN_TEST(test_commit);
+  RUN_TEST(test_get_network_id);
 
   return UnityEnd();
   close(sock);
