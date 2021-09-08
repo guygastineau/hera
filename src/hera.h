@@ -4,11 +4,10 @@
 #include <linux/wireless.h>
 
 int iw_get_socket();
+void iw_close_socket(int sock);
 
 // Commit pending changes to driver. Does this require root?
-int iw_commit(void);
-int iw_commit_(int sock);
-
+int iw_commit(int sock, char *ifname);
 // Get wireless extensions name.
 int iw_get_we_string(int sock, char *ifname, char *dest, size_t dest_size);
 

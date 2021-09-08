@@ -20,6 +20,21 @@ int iw_get_socket()
   return -1;
 }
 
+void iw_close_socket(int sock)
+{
+  close(sock);
+}
+
+
+
+int iw_commit(int sock, char *ifname)
+{
+  if (!ifname) {
+    return -1;
+  }
+  return  ioctl(sock, SIOCSIWCOMMIT, NULL);
+}
+
 int iw_get_we_string(int sock, char *ifname, char *dest, size_t dest_size)
 {
   struct iwreq req;
@@ -36,6 +51,8 @@ int iw_get_we_string(int sock, char *ifname, char *dest, size_t dest_size)
   }
   return 0;
 }
+
+
 
 // Get devices as ifreqs written into your buffer.
 int iw_get_devices_(int sock, char *dest, size_t size)

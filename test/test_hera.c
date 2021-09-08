@@ -83,6 +83,13 @@ static void test_get_we_string(void)
   free(ifname);
 }
 
+static void test_commit(void)
+{
+  char *ifname = most_likely_wireless_nic(sock);
+  TEST_ASSERT(iw_commit(sock, ifname));
+  free(ifname);
+}
+
 int main(void)
 {
   sock = iw_get_socket();
@@ -93,6 +100,7 @@ int main(void)
   RUN_TEST(test_get_devices_highlevel);
   RUN_TEST(test_get_wireless_device);
   RUN_TEST(test_get_we_string);
+  RUN_TEST(test_commit);
 
   return UnityEnd();
   close(sock);
